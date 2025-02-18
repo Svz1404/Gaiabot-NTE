@@ -1,10 +1,20 @@
 import fs from 'fs';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import readline from 'readline';
+import cfonts from "cfonts";
 
-dotenv.config();
+dotenv.config();  // Load environment variables
 
-const URLDOMAIN = process.env.URLDOMAIN;
+// Check if domain.txt exists and read domains
+const DOMAIN_FILE = 'domain.txt';
+const URLDOMAINS = fs.existsSync(DOMAIN_FILE) ? fs.readFileSync(DOMAIN_FILE, 'utf8').split('\n').filter(Boolean) : [];
+
+if (URLDOMAINS.length === 0) {
+    console.error('❌ domain.txt is missing or empty!');
+    process.exit(1);  // Exit the script if no domains are provided
+}
+
 const AUTHORIZE_TOKEN = process.env.AUTHORIZE_TOKEN;
 const KEYWORDS_FILE = process.env.KEYWORDS_FILE;
 const INTERVAL = parseInt(process.env.INTERVAL, 10);
@@ -20,9 +30,15 @@ const getRandomKeyword = (keywords) => {
     return keywords[Math.floor(Math.random() * keywords.length)];
 };
 
+const getRandomUrlDomain = () => {
+    return URLDOMAINS[Math.floor(Math.random() * URLDOMAINS.length)];
+};
+
 const sendRequest = async (keyword) => {
+    const urlDomain = getRandomUrlDomain();
     console.log("\n==============================");
     console.log(`🔍 Keyword: ${keyword}`);
+    console.log(`🌐 Using Domain: ${urlDomain}`);
     console.log("==============================");
     
     const data = {
@@ -33,7 +49,7 @@ const sendRequest = async (keyword) => {
     };
 
     try {
-        const response = await fetch(URLDOMAIN, {
+        const response = await fetch(urlDomain, {
             method: "POST",
             headers: {
                 "Accept": "application/json",
@@ -44,7 +60,7 @@ const sendRequest = async (keyword) => {
         });
         
         if (!response.ok) {
-            throw new Error("Error! No response from server");
+            throw new Error("No response from server");
         }
         
         const json = await response.json();
@@ -55,18 +71,48 @@ const sendRequest = async (keyword) => {
         console.log(content);
         console.log("------------------------------\n");
     } catch (error) {
-        console.error("❌ Error! No response from server");
+        // Suppressing error logs for server issues
+        // Optionally log the error only in specific environments or for debugging
+        // console.error("❌ Error: ", error.message);
     }
 };
 
-const startLoop = async () => {
-    const keywords = readKeywords();
+const startProcess = async (processIndex, keywords) => {
     while (true) {
         const keyword = getRandomKeyword(keywords);
         await sendRequest(keyword);
-        console.log(`⏳ Menunggu ${INTERVAL / 1000} detik...`);
+        console.log(`🔄 Proses ${processIndex} menunggu ${INTERVAL / 1000} detik...`);
         await new Promise(resolve => setTimeout(resolve, INTERVAL));
     }
 };
 
-startLoop();
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+cfonts.say("NT Exhaust", {
+    font: "block",
+    align: "center",
+    colors: ["cyan", "magenta"],
+    background: "black",
+    letterSpacing: 1,
+    lineHeight: 1,
+    space: true,
+    maxLength: "0",
+  });
+
+  console.log("=== Telegram Channel : NT Exhaust (@NTExhaust) ===", "\x1b[36m");
+rl.question("Masukkan jumlah proses yang diinginkan: ", (answer) => {
+    const processCount = parseInt(answer, 10);
+    if (isNaN(processCount) || processCount <= 0) {
+        console.log("❌ Jumlah proses tidak valid!");
+        process.exit(1);
+    }
+    console.log(`🚀 Menjalankan ${processCount} proses...`);
+    
+    const keywords = readKeywords();
+    for (let i = 1; i <= processCount; i++) {
+        startProcess(i, keywords);
+    }
+    rl.close();
+});
